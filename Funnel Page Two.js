@@ -4,75 +4,38 @@ import { memory } from 'wix-storage';
 
 $w.onReady(async function () {
     console.log("🚀 Page 2 loaded.");
-    $w('#nextButton').disable();
     $w('#errorMessage').hide();
-
-    // Retrieve Trust Name from Memory (Must exist from Page 1)
-    let trustName = memory.getItem("trustName");
-    if (!trustName) {
-        console.error("❌ Trust Name missing from memory.");
-        return;
-    }
-    console.log("✅ Trust Name retrieved:", trustName);
 
     // Retrieve stored First & Last Name
     let storedFirstName = memory.getItem("firstName") || "";
     let storedLastName = memory.getItem("lastName") || "";
 
-    // Fetch existing data from database
-    let existingRecord;
-    try {
-        let queryResult = await wixData.query("LandingPageUserSubmissions")
-            .eq("trustName", trustName) // Fetch the correct row
-            .find();
-
-        if (queryResult.items.length > 0) {
-            existingRecord = queryResult.items[0];
-            console.log("✅ Existing record found:", existingRecord);
-
-            // Auto-fill input fields but prioritize memory storage
-            if (!storedFirstName && existingRecord.firstName) {
-                storedFirstName = existingRecord.firstName;
-                memory.setItem("firstName", existingRecord.firstName);
-            }
-            if (!storedLastName && existingRecord.lastName) {
-                storedLastName = existingRecord.lastName;
-                memory.setItem("lastName", existingRecord.lastName);
-            }
-        } else {
-            console.error("❌ ERROR: No existing record found for Trust Name:", trustName);
-        }
-    } catch (error) {
-        console.error("❌ Database Query Error:", error.message);
+    // Determine if Next Button should be enabled at start
+    if (storedFirstName && storedLastName) {
+        console.log("✅ Stored values detected. Enabling Next Button.");
+        $w('#nextButton').enable();
+    } else {
+        console.log("⚠️ No stored values. Disabling Next Button.");
+        $w('#nextButton').disable();
     }
 
-    // Set values in the fields and validate them
+    // Set input values if memory values exist
     $w('#firstNameInput').value = storedFirstName;
     $w('#lastNameInput').value = storedLastName;
-    validateFields();
 
-    // Enable Next Button if fields are already filled
-    function validateFields() {
-        const firstName = $w('#firstNameInput').value.trim();
-        const lastName = $w('#lastNameInput').value.trim();
+    // Enable Next Button when user clicks any input field
+    $w('#firstNameInput, #lastNameInput').onClick(() => {
+        console.log("📌 Input field clicked. Enabling Next Button.");
+        $w('#nextButton').enable();
+    });
 
-        if (firstName !== "" && lastName !== "") {
-            console.log("✅ Inputs detected. Enabling Next Button.");
-            $w('#nextButton').enable();
-        } else {
-            console.log("⚠️ Inputs missing. Disabling Next Button.");
-            $w('#nextButton').disable();
-        }
-    }
-
+    // Validate input on user typing
     $w('#firstNameInput').onInput(() => {
         memory.setItem("firstName", $w('#firstNameInput').value.trim());
-        validateFields();
     });
 
     $w('#lastNameInput').onInput(() => {
         memory.setItem("lastName", $w('#lastNameInput').value.trim());
-        validateFields();
     });
 
     function showError(message) {
@@ -100,17 +63,15 @@ $w.onReady(async function () {
 
         try {
             let existingRecord = await wixData.query("LandingPageUserSubmissions")
-                .eq("trustName", trustName) // Ensure we get the correct row
+                .eq("trustName", memory.getItem("trustName"))
                 .find();
 
             if (existingRecord.items.length > 0) {
                 let existingId = existingRecord.items[0]._id;
                 let updatedData = {
                     _id: existingId,
-                    trustName, // Preserve trust name
                     firstName,
                     lastName,
-                    // Preserve other fields to prevent data loss
                     ...existingRecord.items[0]
                 };
 
@@ -118,15 +79,14 @@ $w.onReady(async function () {
                 await wixData.update("LandingPageUserSubmissions", updatedData);
 
                 console.log("✅ Data saved. Navigating to:", destination);
-                await new Promise(resolve => setTimeout(resolve, 300)); // Short delay ensures DB updates complete
+                await new Promise(resolve => setTimeout(resolve, 300)); // Ensures DB updates complete
                 wixLocation.to(destination);
             } else {
-                console.error("❌ ERROR: No existing record found for Trust Name:", trustName);
+                console.error("❌ ERROR: No existing record found.");
                 showError("Error: Data inconsistency detected. Please restart the process.");
 
-                // Log issue in errorLog field
                 await wixData.insert("LandingPageUserSubmissions", {
-                    trustName,
+                    trustName: memory.getItem("trustName"),
                     errorLog: "ERROR: No existing row found on Page 2."
                 });
             }
@@ -134,10 +94,10 @@ $w.onReady(async function () {
             let errorMessage = `Database error: ${error.message}`;
             showError(errorMessage);
 
-            // Log error in the database
+            // Log error in database
             try {
                 let existingRecord = await wixData.query("LandingPageUserSubmissions")
-                    .eq("trustName", trustName)
+                    .eq("trustName", memory.getItem("trustName"))
                     .find();
 
                 if (existingRecord.items.length > 0) {
@@ -146,13 +106,11 @@ $w.onReady(async function () {
                         _id: existingId,
                         errorLog: errorMessage
                     });
-                    console.log("📝 Error logged in existing entry.");
                 } else {
                     await wixData.insert("LandingPageUserSubmissions", {
-                        trustName,
+                        trustName: memory.getItem("trustName"),
                         errorLog: errorMessage
                     });
-                    console.log("📝 Error logged as new entry.");
                 }
             } catch (logError) {
                 console.error("❌ Failed to log error in database:", logError.message);
@@ -160,6 +118,7 @@ $w.onReady(async function () {
         }
     }
 
+    // ✅ Next and Back buttons now use the same logic, only page destination changes
     $w('#nextButton').onClick(() => submitDataAndNavigate("/signup-Zba2"));
     $w('#backButton').onClick(() => submitDataAndNavigate("/signup-Zba"));
 });

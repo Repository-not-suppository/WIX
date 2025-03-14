@@ -46,11 +46,6 @@ $w.onReady(async function () {
         console.error("❌ Database Query Error:", error.message);
     }
 
-    function isValidEmail(email) {
-        const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        return emailPattern.test(email);
-    }
-
     // Set values in the fields and validate them
     $w('#emailInput').value = storedEmail;
     if (storedAddress) {
@@ -65,36 +60,30 @@ $w.onReady(async function () {
     validateFields();
 
     function validateFields() {
-        console.log("🔍 Running validateFields()...");
-
+        console.log("🔍 Running validateFields()..."); // Debugging log
         const email = $w('#emailInput').value.trim();
+        const address = $w('#addressInput').value?.formatted || ""; // Extracts formatted address safely
         const addressObject = $w('#addressInput').value;
         const addressString = addressObject && typeof addressObject === "object" ? addressObject.formatted || "" : "";
+        const trimmedAddress = addressString.trim();
+
+        console.log(trimmedAddress);
 
         console.log("📩 Email:", email);
-        console.log("📍 Address:", addressString);
+        console.log("📍 Address:", address);
 
-        if (email && !isValidEmail(email)) { // Only validate if email is not empty
-            console.log("❌ Invalid email format.");
-            showError("Please enter a valid email address.");
-            $w('#nextButton').disable();
-            return;
-        } else {
-            hideError();
-        }
-
-        if (email !== "" && addressString.trim() !== "") {
-            console.log("✅ Valid inputs detected. Enabling Next Button.");
+        if (email !== "" && address.trim() !== "") { // Ensure it's a valid string
+            console.log("✅ Inputs detected. Enabling Next Button.");
             $w('#nextButton').enable();
         } else {
             console.log("⚠️ Inputs missing. Disabling Next Button.");
             $w('#nextButton').disable();
         }
+
     }
 
-    $w('#emailInput').onBlur(() => {
-        const email = $w('#emailInput').value.trim();
-        memory.setItem("email", email);
+    $w('#emailInput').onInput(() => {
+        memory.setItem("email", $w('#emailInput').value.trim());
         validateFields();
     });
 

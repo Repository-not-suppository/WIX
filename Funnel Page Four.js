@@ -4,8 +4,16 @@ import { memory } from 'wix-storage';
 
 $w.onReady(async function () {
     console.log("🚀 Page 4 loaded.");
-    $w('#nextButton').disable();
-    $w('#errorMessage').hide();
+
+    //encoding email for link to stripe
+    function getEncodedEmail() {
+        const email = memory.getItem("email") || "";
+        if (!email) {
+            console.error("❌ No email found. Cannot prefill Stripe.");
+            return "";
+        }
+        return encodeURIComponent(email); // Ensure email is URL-safe
+    }
 
     // Retrieve Trust Name from memory (must exist from Page 1)
     let trustName = memory.getItem("trustName");
@@ -19,7 +27,7 @@ $w.onReady(async function () {
     let storedFirstName2 = memory.getItem("firstName2") || "";
     let storedLastName2 = memory.getItem("lastName2") || "";
     let storedEmail2 = memory.getItem("email2") || "";
-    let storedAddress2 = memory.getItem("address2") || "";
+    let storedAddress2 = JSON.parse(memory.getItem("address2") || "{}");
 
     // Fetch existing data from database
     let existingRecord;
@@ -60,23 +68,21 @@ $w.onReady(async function () {
     $w('#firstName2Input').value = storedFirstName2;
     $w('#lastName2Input').value = storedLastName2;
     $w('#email2Input').value = storedEmail2;
-    $w('#address2Input').value = storedAddress2;
+    if (storedAddress2.formatted) {
+        $w('#address2Input').value = storedAddress2;
+    }
     validateFields();
 
     function validateFields() {
         const firstName2 = $w('#firstName2Input').value.trim();
         const lastName2 = $w('#lastName2Input').value.trim();
         const email2 = $w('#email2Input').value.trim();
-        const address2 = $w('#address2Input').value.trim();
+        const addressObject = $w('#address2Input').value;
+        const address2 = addressObject?.formatted?.trim() || ""; // Safely extract and trim
 
+        console.log("🔍 Running validateFields...");
+        $w('#nextButton').enable(); // Always enable Next Button
 
-        if (firstName2 !== "" && lastName2 !== "" && email2 !== ""&& address2 !== "") {
-            console.log("✅ Inputs detected. Enabling Next Button.");
-            $w('#nextButton').enable();
-        } else {
-            console.log("⚠️ Inputs missing. Disabling Next Button.");
-            $w('#nextButton').disable();
-        }
     }
 
     $w('#firstName2Input').onInput(() => {
@@ -94,31 +100,18 @@ $w.onReady(async function () {
         validateFields();
     });
 
-    $w('#address2Input').onInput(() => {
-        memory.setItem("address2", $w('#address2Input').value.trim());
+    $w('#address2Input').onChange(() => {
+        console.log("🏠 Address selected:", $w('#address2Input').value);
+        memory.setItem("address2", JSON.stringify($w('#address2Input').value));
         validateFields();
     });
-
-    function showError(message) {
-        console.error("❌ ERROR:", message);
-        $w('#errorMessage').text = message;
-        $w('#errorMessage').show();
-    }
-
-    function hideError() {
-        $w('#errorMessage').hide();
-    }
 
     async function submitDataAndNavigate(destination) {
         const firstName2 = $w('#firstName2Input').value.trim();
         const lastName2 = $w('#lastName2Input').value.trim();
         const email2 = $w('#email2Input').value.trim();
-        const address2 = $w('#address2Input').value.trim();
-
-        if (firstName2 === "" || lastName2 === "" || email2 === "" || address2 === "") {
-            showError("Error: All fields are required.");
-            return;
-        }
+        const addressObject = $w('#address2Input').value;
+        const address2 = addressObject?.formatted?.trim() || ""; // Safely extract and trim
 
         console.log("📩 Saving Secondary Contact Details:", firstName2, lastName2, email2, address2);
         memory.setItem("firstName2", firstName2);
@@ -151,7 +144,6 @@ $w.onReady(async function () {
                 wixLocation.to(destination);
             } else {
                 console.error("❌ ERROR: No existing record found for Trust Name:", trustName);
-                showError("Error: Data inconsistency detected. Please restart the process.");
 
                 // Log issue in errorLog field
                 await wixData.insert("LandingPageUserSubmissions", {
@@ -161,7 +153,6 @@ $w.onReady(async function () {
             }
         } catch (error) {
             let errorMessage = `Database error: ${error.message}`;
-            showError(errorMessage);
 
             // Log error in the database
             try {
@@ -190,12 +181,27 @@ $w.onReady(async function () {
     }
 
     // ✅ Next and Back buttons now use the same logic, only page destination changes
-    $w('#nextButton').onClick(() => submitDataAndNavigate("https://your-stripe-paylink-url.com"));
+    $w('#nextButton').onClick(async () => {
+    console.log("🔄 Saving data before redirecting...");
+
+    try {
+        const stripeUrl = `https://checkout.nztrustee.co.nz/b/fZe01x8WBczTbx63ch?prefilled_email=${getEncodedEmail()}`;
+        
+        await submitDataAndNavigate("/thank-you");  // Ensure data is saved before redirecting
+        console.log("✅ Data saved successfully. Redirecting to Stripe...");
+        
+        wixLocation.to(stripeUrl);  // Now redirect to Stripe
+    } catch (error) {
+        console.error("❌ Data submission failed. User will NOT be redirected.", error);
+    }
+});
+
     $w('#backButton').onClick(() => submitDataAndNavigate("/signup-Zba2"));
 
     // ✅ Skip button redirects to payment page
     $w('#skipButton').onClick(() => {
         console.log("⚡ Skipping to payment...");
-        wixLocation.to("https://your-stripe-paylink-url.com");
+        const stripeUrl = `https://checkout.nztrustee.co.nz/b/fZe01x8WBczTbx63ch?prefilled_email=${getEncodedEmail()}`;
+        submitDataAndNavigate(stripeUrl);
     });
 });

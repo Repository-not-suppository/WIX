@@ -3,11 +3,11 @@ import wixData from 'wix-data';
 import { memory } from 'wix-storage';
 
 $w.onReady(async function () {
-    console.log("🚀 Page 3 loaded.");
+    console.log("🚀 Page 2 loaded.");
     $w('#nextButton').disable();
     $w('#errorMessage').hide();
 
-    // Retrieve Trust Name from memory (must exist from Page 1)
+    // Retrieve Trust Name from Memory (Must exist from Page 1)
     let trustName = memory.getItem("trustName");
     if (!trustName) {
         console.error("❌ Trust Name missing from memory.");
@@ -15,9 +15,9 @@ $w.onReady(async function () {
     }
     console.log("✅ Trust Name retrieved:", trustName);
 
-    // Retrieve stored Email & Address fields
-    let storedEmail = memory.getItem("email") || "";
-    let storedAddress = JSON.parse(memory.getItem("address") || "{}");
+    // Retrieve stored First & Last Name
+    let storedFirstName = memory.getItem("firstName") || "";
+    let storedLastName = memory.getItem("lastName") || "";
 
     // Fetch existing data from database
     let existingRecord;
@@ -31,13 +31,13 @@ $w.onReady(async function () {
             console.log("✅ Existing record found:", existingRecord);
 
             // Auto-fill input fields but prioritize memory storage
-            if (!storedEmail && existingRecord.email) {
-                storedEmail = existingRecord.email;
-                memory.setItem("email", existingRecord.email);
+            if (!storedFirstName && existingRecord.firstName) {
+                storedFirstName = existingRecord.firstName;
+                memory.setItem("firstName", existingRecord.firstName);
             }
-            if (!storedAddress && existingRecord.address) {
-                storedAddress = existingRecord.address;
-                memory.setItem("address", existingRecord.address);
+            if (!storedLastName && existingRecord.lastName) {
+                storedLastName = existingRecord.lastName;
+                memory.setItem("lastName", existingRecord.lastName);
             }
         } else {
             console.error("❌ ERROR: No existing record found for Trust Name:", trustName);
@@ -46,45 +46,18 @@ $w.onReady(async function () {
         console.error("❌ Database Query Error:", error.message);
     }
 
-    function isValidEmail(email) {
-        const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        return emailPattern.test(email);
-    }
-
     // Set values in the fields and validate them
-    $w('#emailInput').value = storedEmail;
-    if (storedAddress) {
-        try {
-            // Convert stored string into a valid Address object
-            $w('#addressInput').value = { formatted: storedAddress };
-            console.log("✅ Address assigned successfully:", $w('#addressInput').value);
-        } catch (error) {
-            console.error("❌ Address assignment error:", error);
-        }
-    }
+    $w('#firstNameInput').value = storedFirstName;
+    $w('#lastNameInput').value = storedLastName;
     validateFields();
 
+    // Enable Next Button if fields are already filled
     function validateFields() {
-        console.log("🔍 Running validateFields()...");
+        const firstName = $w('#firstNameInput').value.trim();
+        const lastName = $w('#lastNameInput').value.trim();
 
-        const email = $w('#emailInput').value.trim();
-        const addressObject = $w('#addressInput').value;
-        const addressString = addressObject && typeof addressObject === "object" ? addressObject.formatted || "" : "";
-
-        console.log("📩 Email:", email);
-        console.log("📍 Address:", addressString);
-
-        if (email && !isValidEmail(email)) { // Only validate if email is not empty
-            console.log("❌ Invalid email format.");
-            showError("Please enter a valid email address.");
-            $w('#nextButton').disable();
-            return;
-        } else {
-            hideError();
-        }
-
-        if (email !== "" && addressString.trim() !== "") {
-            console.log("✅ Valid inputs detected. Enabling Next Button.");
+        if (firstName !== "" && lastName !== "") {
+            console.log("✅ Inputs detected. Enabling Next Button.");
             $w('#nextButton').enable();
         } else {
             console.log("⚠️ Inputs missing. Disabling Next Button.");
@@ -92,17 +65,13 @@ $w.onReady(async function () {
         }
     }
 
-    $w('#emailInput').onBlur(() => {
-        const email = $w('#emailInput').value.trim();
-        memory.setItem("email", email);
+    $w('#firstNameInput').onInput(() => {
+        memory.setItem("firstName", $w('#firstNameInput').value.trim());
         validateFields();
     });
 
-    $w('#addressInput').onChange(() => {
-        console.log("🏠 Address selected:", $w('#addressInput').value);
-        const addressObject = $w('#addressInput').value;
-        const addressString = addressObject?.formatted || ""; // Extract formatted address safely
-        memory.setItem("address", addressString.trim()); // ✅ Now it's a proper string
+    $w('#lastNameInput').onInput(() => {
+        memory.setItem("lastName", $w('#lastNameInput').value.trim());
         validateFields();
     });
 
@@ -117,20 +86,17 @@ $w.onReady(async function () {
     }
 
     async function submitDataAndNavigate(destination) {
-        const email = $w('#emailInput').value.trim();
-        const address = $w('#addressInput').value?.formatted || "";
+        const firstName = $w('#firstNameInput').value.trim();
+        const lastName = $w('#lastNameInput').value.trim();
 
-        if (email === "" || address === "") {
-            showError("Error: Both Email and Address are required.");
+        if (firstName === "" || lastName === "") {
+            showError("Error: Both First Name and Last Name are required.");
             return;
         }
 
-        console.log("📩 Saving Email & Address:", email, address);
-        memory.setItem("email", email);
-        const addressObject = $w('#addressInput').value;
-        if (addressObject && typeof addressObject === "object") {
-            memory.setItem("address", JSON.stringify(addressObject)); // Store full object
-        }
+        console.log("📩 Saving First & Last Name:", firstName, lastName);
+        memory.setItem("firstName", firstName);
+        memory.setItem("lastName", lastName);
 
         try {
             let existingRecord = await wixData.query("LandingPageUserSubmissions")
@@ -142,9 +108,10 @@ $w.onReady(async function () {
                 let updatedData = {
                     _id: existingId,
                     trustName, // Preserve trust name
-                    email,
-                    address,
-                    ...existingRecord.items[0] // Preserve other fields to prevent data loss
+                    firstName,
+                    lastName,
+                    // Preserve other fields to prevent data loss
+                    ...existingRecord.items[0]
                 };
 
                 console.log("🔄 Updating existing record:", updatedData);
@@ -160,7 +127,7 @@ $w.onReady(async function () {
                 // Log issue in errorLog field
                 await wixData.insert("LandingPageUserSubmissions", {
                     trustName,
-                    errorLog: "ERROR: No existing row found on Page 3."
+                    errorLog: "ERROR: No existing row found on Page 2."
                 });
             }
         } catch (error) {
@@ -193,7 +160,6 @@ $w.onReady(async function () {
         }
     }
 
-    // ✅ Next and Back buttons now use the same logic, only page destination changes
-    $w('#nextButton').onClick(() => submitDataAndNavigate("/signup-Zba3"));
-    $w('#backButton').onClick(() => submitDataAndNavigate("/signup-Zba1"));
+    $w('#nextButton').onClick(() => submitDataAndNavigate("/signup-Zba2"));
+    $w('#backButton').onClick(() => submitDataAndNavigate("/signup-Zba"));
 });
